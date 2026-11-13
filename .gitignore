@@ -1,0 +1,31 @@
+# Virtual environment
+.venv/
+
+# Footage, templates, labels, intermediate stage outputs (never committed)
+data/
+
+# Model weights / checkpoints (downloaded or trained)
+models/*
+!models/README.md
+work_dirs/
+*.pth
+*.pt
+*.ckpt
+
+# Results: metrics CSVs and plot PNGs are committed; videos are not
+results/**/*.mp4
+results/**/*.avi
+results/**/*.mov
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Notebooks / OS / editors
+.ipynb_checkpoints/
+.DS_Store
+.vscode/

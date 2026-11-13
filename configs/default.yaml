@@ -1,0 +1,35 @@
+# Default pipeline configuration. Override per run with:
+#   python scripts/<stage>.py --config configs/default.yaml --set device=mps
+# Paths are relative to the repo root.
+
+# Inference device for detection/pose/classification: cpu | mps | cuda | cuda:0
+device: cpu
+
+# Every stage writes to <runs_dir>/<video_stem>/ (see CLAUDE.md for the file list).
+runs_dir: data/runs
+
+video:
+  fps: 60            # SF6 runs at 60 fps. Frames are never skipped or downsampled.
+
+# Regions blacked out before detection so HUD elements (health bars, Drive gauge,
+# timer, input display) are not picked up as people. Coordinates are fractions of
+# frame width/height: [x0, y0, x1, y1], so the same config works at any resolution.
+hud_mask:
+  enabled: false
+  regions: []
+  # Example (to be measured on your footage in Phase 2):
+  #   - [0.00, 0.00, 1.00, 0.12]   # health bars + timer
+  #   - [0.00, 0.88, 1.00, 1.00]   # Drive / Super gauges
+
+characters: [ryu, chunli]
+
+movelists:
+  ryu: configs/movelists/ryu.csv
+  chunli: configs/movelists/chunli.csv
+
+# Stage settings are added as each phase is implemented:
+#   detection / pose        -> Phase 2
+#   normalize               -> Phase 3
+#   autolabel / clips       -> Phase 4
+#   classifier / events     -> Phase 5
+#   timeline / render       -> Phase 6

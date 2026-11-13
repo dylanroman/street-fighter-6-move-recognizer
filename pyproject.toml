@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sf6mr"
+version = "0.1.0"
+description = "Street Fighter 6 move and input recognition from gameplay video (pose estimation + skeleton action classification)"
+requires-python = ">=3.10,<3.11"
+# Dependencies are managed by scripts/setup_env_*.sh + requirements.txt
+# because the OpenMMLab stack needs platform-specific install steps.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: builds full models (deselect with -m 'not slow')",
+]
+# Silence known-noisy third-party warnings; our own warnings still show.
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning:mmpose",
+    "ignore::UserWarning:mmdet",
+    "ignore::UserWarning:torch",
+]
