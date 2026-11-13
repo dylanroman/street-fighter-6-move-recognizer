@@ -1,5 +1,5 @@
-# Default pipeline configuration. Override per run with:
-#   python scripts/<stage>.py --config configs/default.yaml --set device=mps
+# Default pipeline configuration. Override per run in a stage notebook's parameters cell:
+#   cfg = load_config(resolve_path("configs/default.yaml"), ["device=mps"])
 # Paths are relative to the repo root.
 
 # Inference device for detection/pose/classification: cpu | mps | cuda | cuda:0

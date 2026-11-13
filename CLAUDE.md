@@ -17,7 +17,11 @@ on her first, then extended to Ken.
 - **Don't change the pinned OpenMMLab stack** without re-running `scripts/check_env.py`
   on both machines (see "Environment").
 - Work is done in phases; **stop after each phase** so the user can test on real footage.
-- Every stage is runnable on its own from `scripts/` and writes its output to disk.
+- **All model code lives in Jupyter notebooks** (`notebooks/`, one per stage): building
+  or loading RTMDet / RTMPose / ST-GCN++, inference loops, training and fine-tuning.
+  `src/sf6mr/` holds only model-free helpers (see "Layout"). Each stage notebook runs
+  top to bottom on its own (Restart & Run All), reads earlier stages' outputs from
+  disk and writes its own output to disk.
 
 ## Environment
 
@@ -55,7 +59,7 @@ Verify: `.venv/bin/python scripts/check_env.py`. It checks versions, devices and
 compiled ops, and runs RTMDet-m, RTMPose-m and ST-GCN++ forward passes on every device
 (random weights, nothing downloaded). Use `--fast` to skip the models.
 
-Devices: `device` in the config is `cpu | mps | cuda`. Training scripts must run on
+Devices: `device` in the config is `cpu | mps | cuda`. Training notebooks must run on
 CUDA, and on CPU/MPS for small smoke tests. Mac measurements from `check_env.py`
 (random weights, so the numbers are rough):
 
@@ -71,17 +75,23 @@ MPS with NMS on CPU (decided in Phase 2).
 ## Layout
 
 ```
-src/sf6mr/        library code, one module per stage (installed editable: `pip install -e .`)
-  config.py       YAML config + `--set a.b=value` overrides; resolve_path() is repo-relative
+notebooks/        stage notebooks NN_<stage>.ipynb (all model code); unnumbered = scratch
+src/sf6mr/        model-free helpers the notebooks import (installed editable: `pip install -e .`)
+  config.py       YAML config + `a.b=value` overrides; resolve_path() is repo-relative
   envcheck.py     environment verification used by scripts/check_env.py and tests/test_env.py
-scripts/          command-line entry points (one per stage + setup / check_env)
+scripts/          setup_env_*, check_env, download_weights only (no stage scripts)
 configs/          default.yaml, movelists/<character>.csv, mmpose/, mmaction/ model configs
 data/             (gitignored) footage, templates, labels, and per-video stage outputs
 models/           (gitignored) weights/checkpoints
 results/          metrics CSVs + plot PNGs (committed); videos ignored
 tests/            pytest; synthetic data only
-notebooks/        scratch exploration
 ```
+
+What goes where: anything that builds or loads a model, or runs one, goes in a notebook.
+Pure functions the tests need (stage-file I/O, normalization, event merging, move list →
+input mapping, input-display template matching) go in `src/sf6mr/` and are imported by
+the notebooks. `check_env.py` / `envcheck.py` are the one exception: they build models
+with random weights only to verify the environment.
 
 ## Running
 
@@ -93,30 +103,51 @@ pytest -m "not slow"                  # fast tests
 pytest                                # includes model forward passes (~1 min on CPU)
 ```
 
-Stage scripts all take `--config configs/default.yaml` and `--set key=value` overrides,
-and write to `data/runs/<video_stem>/`.
+Stage notebooks use the `.venv` kernel (`ipykernel` is in requirements.txt). Each one
+starts with a single parameters cell, then loads the config with the same override
+syntax for every stage:
+
+```python
+CONFIG = "configs/default.yaml"    # repo-relative
+VIDEO = "data/raw/<clip>.mp4"
+OVERRIDES = ["device=mps"]         # same "a.b=value" syntax as load_config()
+
+from sf6mr.config import load_config, resolve_path
+cfg = load_config(resolve_path(CONFIG), OVERRIDES)
+```
+
+Outputs go to `data/runs/<video_stem>/`. Notebooks are committed **with outputs
+cleared**; figures worth keeping are saved to `results/*.png`. Long training runs on the
+NVIDIA machine (Phases 5 and 7) can be run headless with `jupyter nbconvert --execute`;
+`nbconvert` gets added to requirements.txt in Phase 5.
 
 ## Pipeline and stage outputs
 
 Status: ✅ done · ⏳ planned (phase number). File formats for planned stages are the
 intended contract and get finalized when that phase is built.
 
-| # | Stage | Module / script | Output in `data/runs/<video>/` | Status |
-|---|---|---|---|---|
-| 1 | Frames: read video (OpenCV), optional HUD mask (fractional rects in config) | `frames` | `frames.json` (fps, size, count, mask) | ⏳ 2 |
-| 2 | Detection: RTMDet person boxes; P1/P2 by matching to the previous frame (survives side switches) | `detect` | `detections.npz` | ⏳ 2 |
-| 3 | Pose: RTMPose-m 256x192, COCO-17 | `pose` | `keypoints.npz` `(T, 2, 17, 3)` x, y, conf in pixels | ⏳ 2 |
-| 4 | Normalize: hip-center, torso scale, mirror + L/R swap when facing left, interpolate low-conf joints, smoothing | `normalize` | `normalized.npz` | ⏳ 3 |
-| 5 | Classify: ST-GCN++ sliding windows (30 frames), merge into events, drop events shorter than startup | `classify`, `events` | `predictions.npz`, `events.csv` | ⏳ 5 |
-| 6 | Move list → inputs: input frame = event start − startup; forward/back → screen direction via facing | `movelist`, `timeline` | `timeline.json`, `timeline.csv` | ⏳ 6 |
-| 7 | Annotated video: skeletons + scrolling input list | `visualize` | `annotated.mp4` | ⏳ 2 (skeletons), 6 (inputs) |
+Notebook names are planned and get fixed when each phase is built; helper modules in
+`src/sf6mr/` are added only where the tests or several notebooks need them.
 
-Side tools:
-- Input-display auto-labeler (template matching against user-provided icons, with the
-  screen region set in config) → frame-level labels and clip extraction (Phase 4).
-- RTMPose fine-tuning config + low-confidence frame picker for CVAT labeling (Phase 7).
-- Evaluation: pose PCK, move top-1 + confusion matrix, input edit distance, ablations →
-  `results/*.csv`, `results/*.png` (Phase 8).
+| # | Stage | Notebook (helpers) | Output in `data/runs/<video>/` | Status |
+|---|---|---|---|---|
+| 1 | Frames: read video (OpenCV), optional HUD mask (fractional rects in config) | `02_detect_pose` (`frames`) | `frames.json` (fps, size, count, mask) | ⏳ 2 |
+| 2 | Detection: RTMDet person boxes; P1/P2 by matching to the previous frame (survives side switches) | `02_detect_pose` | `detections.npz` | ⏳ 2 |
+| 3 | Pose: RTMPose-m 256x192, COCO-17 | `02_detect_pose` | `keypoints.npz` `(T, 2, 17, 3)` x, y, conf in pixels | ⏳ 2 |
+| 4 | Normalize: hip-center, torso scale, mirror + L/R swap when facing left, interpolate low-conf joints, smoothing | `03_normalize` (`normalize`) | `normalized.npz` | ⏳ 3 |
+| 5 | Classify: ST-GCN++ sliding windows (30 frames), merge into events, drop events shorter than startup | `05_classify` (`events`) | `predictions.npz`, `events.csv` | ⏳ 5 |
+| 6 | Move list → inputs: input frame = event start − startup; forward/back → screen direction via facing | `06_timeline` (`movelist`, `timeline`) | `timeline.json`, `timeline.csv` | ⏳ 6 |
+| 7 | Annotated video: skeletons + scrolling input list | `02_detect_pose` (skeletons), `06_timeline` (inputs) | `annotated.mp4` | ⏳ 2, 6 |
+
+Side notebooks:
+- `04_autolabel`: input-display auto-labeler (template matching against user-provided
+  icons, with the screen region set in config) → frame-level labels and clip
+  extraction (Phase 4).
+- `05_train_stgcn`: ST-GCN++ training per character, on CUDA (Phase 5).
+- `07_finetune_rtmpose`: low-confidence frame picker for CVAT labeling + RTMPose
+  fine-tuning (Phase 7).
+- `08_evaluate`: pose PCK, move top-1 + confusion matrix, input edit distance,
+  ablations → `results/*.csv`, `results/*.png` (Phase 8).
 
 ## Conventions
 

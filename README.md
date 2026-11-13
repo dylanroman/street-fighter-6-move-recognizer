@@ -111,8 +111,9 @@ has run it yet. If it fails for you, open an issue with the `check_env.py` outpu
 ## Repo layout
 
 ```
-src/sf6mr/     library code, one module per pipeline stage
-scripts/       command-line entry points (one per stage)
+notebooks/     one Jupyter notebook per pipeline stage; all model code lives here
+src/sf6mr/     model-free helpers the notebooks import (config, normalization, ...)
+scripts/       environment setup, check_env.py, download_weights.py
 configs/       pipeline config (default.yaml), move lists, model configs
 data/          your footage, templates, labels, stage outputs (gitignored)
 models/        model weights (gitignored)
@@ -120,9 +121,11 @@ results/       metrics (CSV) and plots (PNG)
 tests/         unit tests on synthetic data
 ```
 
-Each stage is a separate command that saves its output to `data/runs/<video_name>/`,
-so you can inspect or rerun any step on its own. Usage for each stage will be added
-here as the phase lands.
+Each stage is a notebook (`notebooks/02_detect_pose.ipynb`, `03_normalize.ipynb`, ...)
+that saves its output to `data/runs/<video_name>/`, so you can inspect or rerun any step
+on its own. Open it with the `.venv` Python as the kernel, set the parameters in the
+first cell (config file, video, overrides such as `device=mps`), then run all cells.
+Usage for each stage will be added here as the phase lands.
 
 ## Tests
 

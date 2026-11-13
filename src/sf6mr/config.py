@@ -1,7 +1,8 @@
-"""Pipeline configuration: YAML files plus dotted command-line overrides.
+"""Pipeline configuration: YAML files plus dotted ``key.subkey=value`` overrides.
 
-Every stage script accepts ``--config configs/default.yaml`` and any number of
-``--set key.subkey=value`` overrides, e.g. ``--set device=mps``.
+Every stage notebook loads its config in its parameters cell, e.g.::
+
+    cfg = load_config(resolve_path("configs/default.yaml"), ["device=mps"])
 """
 
 from __future__ import annotations
