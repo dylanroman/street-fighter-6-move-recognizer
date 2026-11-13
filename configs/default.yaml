@@ -11,15 +11,16 @@ runs_dir: data/runs
 video:
   fps: 60            # SF6 runs at 60 fps. Frames are never skipped or downsampled.
 
-# Regions blacked out before detection so HUD elements (health bars, Drive gauge,
-# timer, input display) are not picked up as people. Coordinates are fractions of
-# frame width/height: [x0, y0, x1, y1], so the same config works at any resolution.
+# Regions blacked out before *detection only* (pose and the video use the full frame).
+# Coordinates are fractions of frame width/height: [x0, y0, x1, y1], so the same config
+# works at any resolution. Off by default: on the 1080p test clip the HUD produced no
+# person boxes above the tracker's min_score. Don't mask the bottom Drive/Super gauges:
+# grounded fighters' feet reach ~97% of frame height.
 hud_mask:
   enabled: false
   regions: []
-  # Example (to be measured on your footage in Phase 2):
-  #   - [0.00, 0.00, 1.00, 0.12]   # health bars + timer
-  #   - [0.00, 0.88, 1.00, 1.00]   # Drive / Super gauges
+  # Example: health bars, timer and player cards
+  #   - [0.00, 0.00, 1.00, 0.10]
 
 characters: [chunli, ken]   # chunli is the primary character
 
@@ -27,8 +28,29 @@ movelists:
   chunli: configs/movelists/chunli.csv
   ken: configs/movelists/ken.csv
 
+# Stage 2: RTMDet-m person detector. On MPS the network runs on the GPU and only
+# post-processing (NMS, which has no MPS kernel in mmcv) runs on the CPU.
+detection:
+  config: configs/mmdet/rtmdet_m_person.py
+  checkpoint: models/rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth
+  batch_size: 8
+  save_score: 0.2     # boxes at or above this are saved to detections.npz
+
+# Picking P1/P2 out of the detections: any field of sf6mr.track.TrackerParams,
+# e.g. `min_score: 0.3`. Defaults were tuned on the 1080p Ken vs. Chun-Li test clip.
+tracker: {}
+
+# Stage 3: RTMPose-m, COCO-17, top-down on the two fighter boxes.
+pose:
+  config: configs/mmpose/rtmpose_m_coco_256x192.py
+  checkpoint: models/rtmpose-m_simcc-coco_pt-aic-coco_420e-256x192-d8dd5ca4_20230127.pth
+
+# Annotated video
+render:
+  min_joint_score: 0.3   # joints below this RTMPose score aren't drawn
+  crf: 20                # H.264 quality (lower = better, bigger)
+
 # Stage settings are added as each phase is implemented:
-#   detection / pose        -> Phase 2
 #   normalize               -> Phase 3
 #   autolabel / clips       -> Phase 4
 #   classifier / events     -> Phase 5

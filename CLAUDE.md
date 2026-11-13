@@ -69,8 +69,10 @@ CUDA, and on CPU/MPS for small smoke tests. Mac measurements from `check_env.py`
 | RTMPose-m, 2 people | ~145 ms | ~25 ms |
 | ST-GCN++, 30-frame window | ✓ | ✓ |
 
-So on the Mac, pose should run on MPS. Detection needs either CPU, or its backbone on
-MPS with NMS on CPU (decided in Phase 2).
+Decided in Phase 2, with the real weights on the 1080p test clip: on MPS, `02_detect_pose`
+runs the RTMDet network on the GPU and only `bbox_head.predict_by_feat` (NMS) on the CPU.
+That's 16–19 ms/frame at batch 8 vs ~400 ms/frame on CPU, with identical boxes. RTMPose
+on MPS: ~25 ms/frame for two fighters. The whole notebook takes ~70 s for 20 s of footage.
 
 ## Layout
 
@@ -79,8 +81,13 @@ notebooks/        stage notebooks NN_<stage>.ipynb (all model code); unnumbered 
 src/sf6mr/        model-free helpers the notebooks import (installed editable: `pip install -e .`)
   config.py       YAML config + `a.b=value` overrides; resolve_path() is repo-relative
   envcheck.py     environment verification used by scripts/check_env.py and tests/test_env.py
+  frames.py       video info / frame iterator / HUD mask
+  track.py        P1/P2 selection + tracking over detections (TrackerParams), colour histograms
+  runs.py         per-video stage file paths, save/load (file contracts in its docstring)
+  visualize.py    skeleton drawing, H.264 VideoWriter (ffmpeg)
 scripts/          setup_env_*, check_env, download_weights only (no stage scripts)
-configs/          default.yaml, movelists/<character>.csv, mmpose/, mmaction/ model configs
+configs/          default.yaml, movelists/<character>.csv, mmdet/, mmpose/, mmaction/ model configs
+                  (model configs inherit from the installed packages via `mmdet::` / `mmpose::`)
 data/             (gitignored) footage, templates, labels, and per-video stage outputs
 models/           (gitignored) weights/checkpoints
 results/          metrics CSVs + plot PNGs (committed); videos ignored
@@ -131,13 +138,30 @@ Notebook names are planned and get fixed when each phase is built; helper module
 
 | # | Stage | Notebook (helpers) | Output in `data/runs/<video>/` | Status |
 |---|---|---|---|---|
-| 1 | Frames: read video (OpenCV), optional HUD mask (fractional rects in config) | `02_detect_pose` (`frames`) | `frames.json` (fps, size, count, mask) | ⏳ 2 |
-| 2 | Detection: RTMDet person boxes; P1/P2 by matching to the previous frame (survives side switches) | `02_detect_pose` | `detections.npz` | ⏳ 2 |
-| 3 | Pose: RTMPose-m 256x192, COCO-17 | `02_detect_pose` | `keypoints.npz` `(T, 2, 17, 3)` x, y, conf in pixels | ⏳ 2 |
+| 1 | Frames: read video (OpenCV), optional HUD mask (fractional rects in config, detection only) | `02_detect_pose` (`frames`) | `frames.json` (fps, size, count, mask) | ✅ |
+| 2 | Detection: RTMDet person boxes + colour histogram per box; P1/P2 picked and tracked (see below) | `02_detect_pose` (`track`) | `detections.npz` (all boxes ≥ 0.2, plus `fighters (T, 2, 5)`) | ✅ |
+| 3 | Pose: RTMPose-m 256x192, COCO-17, top-down on the fighter boxes | `02_detect_pose` | `keypoints.npz` `(T, 2, 17, 3)` x, y in pixels, SimCC score (not a probability; can exceed 1) | ✅ |
 | 4 | Normalize: hip-center, torso scale, mirror + L/R swap when facing left, interpolate low-conf joints, smoothing | `03_normalize` (`normalize`) | `normalized.npz` | ⏳ 3 |
 | 5 | Classify: ST-GCN++ sliding windows (30 frames), merge into events, drop events shorter than startup | `05_classify` (`events`) | `predictions.npz`, `events.csv` | ⏳ 5 |
 | 6 | Move list → inputs: input frame = event start − startup; forward/back → screen direction via facing | `06_timeline` (`movelist`, `timeline`) | `timeline.json`, `timeline.csv` | ⏳ 6 |
-| 7 | Annotated video: skeletons + scrolling input list | `02_detect_pose` (skeletons), `06_timeline` (inputs) | `annotated.mp4` | ⏳ 2, 6 |
+| 7 | Annotated video: skeletons + scrolling input list | `02_detect_pose` (skeletons), `06_timeline` (inputs) | `annotated.mp4` | ✅ skeletons · ⏳ 6 inputs |
+
+P1/P2 tracking (`sf6mr.track`), tuned on the 1080p Ken vs. Chun-Li clip. SF6 stages have
+spectators that RTMDet detects with scores as high as the fighters', so detection score
+alone can't pick the fighters. Three cues:
+- **Ground line:** fighters are only (re)found among boxes whose bottom is below 85% of
+  frame height; spectators stand behind the fence (~70–80%). A track that stays off the
+  ground > 40 frames is dropped and blanked (it was a spectator).
+- **Continuity:** Hungarian matching to a velocity-predicted box, gated by distance
+  (0.4 × box height, widening while lost) and height ratio (≤ 1.8×).
+- **Appearance:** hue/saturation histogram templates per fighter from the first 30
+  colourful frames where they're apart, then frozen (EMA updates drifted; grey round-intro
+  frames made both templates alike). Colour is trusted only when a box is ≥ 0.75 similar
+  to a template; under Super effects it isn't, and position alone is used.
+When unsure, a fighter is left NaN. On the test clip: P1 87%, P2 92%, both 80% of frames,
+no identity swaps found in ~70 hand-checked frames. Known misses: Super cinematics,
+fighters fully hidden behind each other, fast knockdowns. Known error: ~5 frames where a
+blue effect next to Chun-Li was taken for airborne Ken (frames 1122–1130).
 
 Side notebooks:
 - `04_autolabel`: input-display auto-labeler (template matching against user-provided
@@ -163,4 +187,9 @@ Side notebooks:
   total_frames`. `total_frames` was added to the original spec; the auto-labeler needs it
   to cut clips. Frame data must be checked by the user in-game; don't fill it in from memory.
 - Tests use synthetic data only. Required unit tests: normalization (mirroring, L/R
-  swap, scaling), event merging, move→input mapping.
+  swap, scaling), event merging, move→input mapping. Also covered: tracker, frames/HUD
+  mask, stage-file I/O, drawing.
+- Test footage: `data/raw/goto-ken_vs_haitani-chunli_0330-0350.mp4`, 1920x1080, 60 fps,
+  1200 frames (3:30–3:50 of a YouTube match the user chose). Ken is P1, starting left;
+  black-and-white round intro, spectators, several side switches, a Super at ~frame 590.
+  No input display, so it can't be auto-labeled.

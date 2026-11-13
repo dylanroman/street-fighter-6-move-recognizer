@@ -31,7 +31,7 @@ automatically with template matching.
 | Phase | What | Status |
 |---|---|---|
 | 1 | Project skeleton, environment, docs | ✅ |
-| 2 | Detection + pose + skeleton visualization (pretrained) | ⏳ |
+| 2 | Detection + pose + skeleton visualization (pretrained) | ✅ |
 | 3 | Normalization + tests | ⏳ |
 | 4 | Input-display auto-labeler + clip extraction | ⏳ |
 | 5 | ST-GCN++ training, sliding-window inference, event merging | ⏳ |
@@ -125,7 +125,26 @@ Each stage is a notebook (`notebooks/02_detect_pose.ipynb`, `03_normalize.ipynb`
 that saves its output to `data/runs/<video_name>/`, so you can inspect or rerun any step
 on its own. Open it with the `.venv` Python as the kernel, set the parameters in the
 first cell (config file, video, overrides such as `device=mps`), then run all cells.
-Usage for each stage will be added here as the phase lands.
+
+## Running the pipeline
+
+### 1. Detection, P1/P2 and pose: `notebooks/02_detect_pose.ipynb`
+
+Put a 60 fps recording in `data/raw/`, set `VIDEO` in the first cell, and run all cells.
+It writes to `data/runs/<video_name>/`:
+
+| File | What |
+|---|---|
+| `frames.json` | fps, size, frame count, HUD mask |
+| `detections.npz` | every detected person box, and which two are P1 / P2 in each frame |
+| `keypoints.npz` | 17 COCO keypoints per fighter per frame, `(frames, 2, 17, 3)`: x, y, score |
+| `annotated.mp4` | the video with P1 (pink) and P2 (blue) boxes and skeletons |
+
+P1 is whoever starts on the left. Stage spectators are filtered out, and each fighter
+keeps their P1/P2 label through side switches. When the tracker isn't sure (Super
+cinematics, one fighter hidden behind the other) it leaves that fighter out for those
+frames rather than guessing. On an M-series Mac with `device=mps` it takes about
+70 s for 20 s of 1080p footage.
 
 ## Tests
 
