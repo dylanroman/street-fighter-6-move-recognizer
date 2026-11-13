@@ -65,6 +65,12 @@ source .venv/bin/activate
 python scripts/check_env.py
 ```
 
+Then download the pretrained detector and pose weights (~150 MB) into `models/`:
+
+```bash
+python scripts/download_weights.py
+```
+
 `check_env.py` should end with `OK`. It checks versions, devices and MMCV's compiled
 ops, and runs every model once on dummy input. `WARN` lines for CUDA on a Mac, or for
 RTMDet on MPS, are expected.

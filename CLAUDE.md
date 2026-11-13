@@ -87,6 +87,7 @@ notebooks/        scratch exploration
 
 ```bash
 source .venv/bin/activate
+python scripts/download_weights.py    # pretrained RTMDet-m person + RTMPose-m COCO -> models/ (sha256-pinned)
 python scripts/check_env.py           # environment
 pytest -m "not slow"                  # fast tests
 pytest                                # includes model forward passes (~1 min on CPU)
