@@ -21,6 +21,20 @@ keypoints.npz
                                         NaN when that player is missing in that frame.
     Scores are RTMPose SimCC confidences: higher is better, but they are not
     probabilities and can exceed 1.
+
+normalized.npz  (sf6mr.normalize.normalize_sequence)
+      joints    (T, 2, 17, 3) float32  x forward, y up, in torso lengths from the hip
+                                       midpoint; channel 2 = RTMPose score (0 for
+                                       interpolated joints). Left-facing fighters are
+                                       mirrored with left/right joints swapped, so every
+                                       skeleton faces +x. NaN where unavailable.
+      observed  (T, 2, 17)    bool     joint came from RTMPose (not interpolated)
+      center    (T, 2, 2)     float32  hip midpoint in pixels
+      scale     (T, 2)        float32  torso length in pixels (rolling median)
+      facing    (T, 2)        int8     +1 facing right on screen, -1 left, 0 unknown
+      grounded  (T, 2)        bool     lowest ankle on the ground line
+      lr_fixes  (2,)          int      left/right limb swaps undone per player
+      params    ()            str      JSON of the NormalizeParams used
 """
 
 from __future__ import annotations
@@ -111,3 +125,16 @@ def save_keypoints(path: Path, keypoints: np.ndarray) -> None:
 def load_keypoints(path: Path) -> np.ndarray:
     with np.load(path) as z:
         return z["keypoints"]
+
+
+# ---------------------------------------------------------------- normalized.npz
+
+def save_normalized(path: Path, result: dict, params) -> None:
+    np.savez_compressed(path, **result, params=np.array(json.dumps(asdict(params))))
+
+
+def load_normalized(path: Path) -> dict:
+    with np.load(path) as z:
+        out = {k: z[k] for k in z.files}
+    out["params"] = json.loads(str(out["params"]))
+    return out

@@ -50,8 +50,11 @@ render:
   min_joint_score: 0.3   # joints below this RTMPose score aren't drawn
   crf: 20                # H.264 quality (lower = better, bigger)
 
+# Stage 4: normalization (hip-centered, torso-scaled, every fighter facing +x).
+# Any field of sf6mr.normalize.NormalizeParams, e.g. `max_gap: 10` or `smooth_window: 0`.
+normalize: {}
+
 # Stage settings are added as each phase is implemented:
-#   normalize               -> Phase 3
 #   autolabel / clips       -> Phase 4
 #   classifier / events     -> Phase 5
 #   timeline / render       -> Phase 6

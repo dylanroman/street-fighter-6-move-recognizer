@@ -83,6 +83,7 @@ src/sf6mr/        model-free helpers the notebooks import (installed editable: `
   envcheck.py     environment verification used by scripts/check_env.py and tests/test_env.py
   frames.py       video info / frame iterator / HUD mask
   track.py        P1/P2 selection + tracking over detections (TrackerParams), colour histograms
+  normalize.py    stage 4: confidence mask, L/R flip repair, gap fill, smoothing, facing, canonical skeleton
   runs.py         per-video stage file paths, save/load (file contracts in its docstring)
   visualize.py    skeleton drawing, H.264 VideoWriter (ffmpeg)
 scripts/          setup_env_*, check_env, download_weights only (no stage scripts)
@@ -141,7 +142,7 @@ Notebook names are planned and get fixed when each phase is built; helper module
 | 1 | Frames: read video (OpenCV), optional HUD mask (fractional rects in config, detection only) | `02_detect_pose` (`frames`) | `frames.json` (fps, size, count, mask) | ✅ |
 | 2 | Detection: RTMDet person boxes + colour histogram per box; P1/P2 picked and tracked (see below) | `02_detect_pose` (`track`) | `detections.npz` (all boxes ≥ 0.2, plus `fighters (T, 2, 5)`) | ✅ |
 | 3 | Pose: RTMPose-m 256x192, COCO-17, top-down on the fighter boxes | `02_detect_pose` | `keypoints.npz` `(T, 2, 17, 3)` x, y in pixels, SimCC score (not a probability; can exceed 1) | ✅ |
-| 4 | Normalize: hip-center, torso scale, mirror + L/R swap when facing left, interpolate low-conf joints, smoothing | `03_normalize` (`normalize`) | `normalized.npz` | ⏳ 3 |
+| 4 | Normalize: drop joints < 0.3, undo short L/R limb swaps, interpolate gaps ≤ 10 frames, Savitzky-Golay (5, 2), facing (turns only when grounded), hip-center, torso scale, y up, mirror + L/R swap when facing left | `03_normalize` (`normalize`) | `normalized.npz` (+ `normalized.mp4` check video) | ✅ |
 | 5 | Classify: ST-GCN++ sliding windows (30 frames), merge into events, drop events shorter than startup | `05_classify` (`events`) | `predictions.npz`, `events.csv` | ⏳ 5 |
 | 6 | Move list → inputs: input frame = event start − startup; forward/back → screen direction via facing | `06_timeline` (`movelist`, `timeline`) | `timeline.json`, `timeline.csv` | ⏳ 6 |
 | 7 | Annotated video: skeletons + scrolling input list | `02_detect_pose` (skeletons), `06_timeline` (inputs) | `annotated.mp4` | ✅ skeletons · ⏳ 6 inputs |
@@ -180,6 +181,17 @@ Side notebooks:
 - Keypoints use COCO-17 order: 0 nose, 1/2 eyes, 3/4 ears, 5/6 shoulders, 7/8 elbows,
   9/10 wrists, 11/12 hips, 13/14 knees, 15/16 ankles (odd = left, even = right).
 - Missing detections or joints are NaN, never 0.
+- Normalized skeletons (`normalized.npz` `joints`): x = forward, y = up, units = torso
+  lengths (shoulder midpoint to hip midpoint, rolling median over 61 frames), origin =
+  hip midpoint. Fighters facing left on screen are mirrored *and* their left/right joints
+  swapped, so every skeleton faces +x. Score channel = RTMPose score, 0 for interpolated
+  joints (`observed` False). Whole-body motion is removed by hip-centering; `center`,
+  `scale`, `facing` and `grounded` are saved so Phase 5 can add jumps/dashes back.
+- Facing: +1 = facing right on screen, -1 = left. A fighter faces the opponent but only
+  turns around while grounded (lowest ankle below 82% of frame height), like SF6, so a
+  cross-up jump keeps its facing until landing.
+- RTMPose left/right swaps are repaired per limb chain (head, arm, leg), never per joint
+  pair: in side view the two shoulders nearly overlap and per-pair fixing broke limbs apart.
 - Inputs use **numpad notation relative to the character** (6 = forward, 4 = back,
   236 = quarter-circle forward). They are converted to screen directions only in the
   final timeline, using facing.

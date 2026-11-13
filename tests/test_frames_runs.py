@@ -101,3 +101,15 @@ def test_video_writer(tmp_path):
     cap = cv2.VideoCapture(str(p))
     assert cap.get(cv2.CAP_PROP_FPS) == pytest.approx(60)
     assert sum(1 for _ in iter(lambda: cap.read()[0], False)) == 10
+
+
+def test_normalized_roundtrip(tmp_path):
+    from sf6mr.normalize import NormalizeParams, normalize_sequence
+
+    kp = np.full((4, 2, 17, 3), np.nan)
+    res = normalize_sequence(kp, 1080)
+    runs.save_normalized(tmp_path / "n.npz", res, NormalizeParams())
+    back = runs.load_normalized(tmp_path / "n.npz")
+    assert set(res) <= set(back) and back["params"]["max_gap"] == NormalizeParams().max_gap
+    assert back["joints"].shape == (4, 2, 17, 3) and np.isnan(back["joints"]).all()
+    assert back["facing"].dtype == np.int8 and (back["facing"] == 0).all()

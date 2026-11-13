@@ -62,6 +62,45 @@ def draw_frame(
     return out
 
 
+def draw_normalized(
+    joints: np.ndarray,
+    color=(255, 255, 255),
+    size: tuple[int, int] = (480, 540),
+    px_per_unit: float = 110,
+    observed: np.ndarray | None = None,
+    title: str = "",
+) -> np.ndarray:
+    """Draw one normalized skeleton (17, 2+) on a dark panel: hip at the center,
+    x = forward (right), y = up, units = torso lengths. Interpolated joints
+    (``observed`` False) are hollow. Returns a BGR image of ``size`` (w, h)."""
+    w, h = size
+    img = np.full((h, w, 3), 24, np.uint8)
+    ox, oy = w // 2, int(h * 0.55)
+    # axes: torso-length grid
+    for k in range(-3, 4):
+        cv2.line(img, (ox + int(k * px_per_unit), 0), (ox + int(k * px_per_unit), h), (40, 40, 40), 1)
+        cv2.line(img, (0, oy - int(k * px_per_unit)), (w, oy - int(k * px_per_unit)), (40, 40, 40), 1)
+    cv2.arrowedLine(img, (ox, h - 22), (ox + 60, h - 22), (120, 120, 120), 2, tipLength=0.3)
+    cv2.putText(img, "forward", (ox + 68, h - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (120, 120, 120), 1, cv2.LINE_AA)
+    if title:
+        cv2.putText(img, title, (10, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
+    j = np.asarray(joints, float)
+    if np.isnan(j[:, 0]).all():
+        cv2.putText(img, "missing", (ox - 50, oy), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (90, 90, 90), 2, cv2.LINE_AA)
+        return img
+    pts = np.stack([ox + j[:, 0] * px_per_unit, oy - j[:, 1] * px_per_unit], axis=1)
+    ok = ~np.isnan(pts[:, 0])
+    for a, b in SKELETON:
+        if ok[a] and ok[b]:
+            c = _lighter(color) if a in _LEFT and b in _LEFT else color
+            cv2.line(img, tuple(pts[a].astype(int)), tuple(pts[b].astype(int)), c, 3, cv2.LINE_AA)
+    for i in np.flatnonzero(ok):
+        c = _lighter(color) if i in _LEFT else color
+        filled = observed is None or observed[i]
+        cv2.circle(img, tuple(pts[i].astype(int)), 5, c, -1 if filled else 2, cv2.LINE_AA)
+    return img
+
+
 class VideoWriter:
     """Write BGR frames to an H.264 MP4 through ffmpeg (falls back to OpenCV's mp4v).
 

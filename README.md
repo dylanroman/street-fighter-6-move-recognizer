@@ -32,7 +32,7 @@ automatically with template matching.
 |---|---|---|
 | 1 | Project skeleton, environment, docs | ✅ |
 | 2 | Detection + pose + skeleton visualization (pretrained) | ✅ |
-| 3 | Normalization + tests | ⏳ |
+| 3 | Normalization + tests | ✅ |
 | 4 | Input-display auto-labeler + clip extraction | ⏳ |
 | 5 | ST-GCN++ training, sliding-window inference, event merging | ⏳ |
 | 6 | Move list → input timeline + annotated demo video | ⏳ |
@@ -145,6 +145,16 @@ keeps their P1/P2 label through side switches. When the tracker isn't sure (Supe
 cinematics, one fighter hidden behind the other) it leaves that fighter out for those
 frames rather than guessing. On an M-series Mac with `device=mps` it takes about
 70 s for 20 s of 1080p footage.
+
+### 2. Normalization: `notebooks/03_normalize.ipynb`
+
+Run it on the same video after step 1 (no models, a few seconds). It turns each
+fighter's pixel keypoints into a body-relative skeleton that always faces right
+(x = forward, y = up, measured in torso lengths from the hips), so a move looks the
+same whichever side of the screen it's done from. It also fills short gaps, fixes
+moments where the pose model swapped a fighter's left and right limbs, lightly smooths,
+and works out which way each fighter is facing. It writes `normalized.npz` and a check
+video, `normalized.mp4`, showing the original frame next to both normalized skeletons.
 
 ## Tests
 
