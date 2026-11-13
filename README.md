@@ -8,7 +8,7 @@ gameplay video. The pipeline:
 3. classifies short windows of skeleton motion into moves,
 4. maps each move back to the button input that produced it.
 
-Scope: **Ryu and Chun-Li**, Classic controls, ~15 moves each.
+Scope: **Chun-Li** (primary) and **Ken**, Classic controls, ~15 moves each.
 
 ```
 video (60 fps)

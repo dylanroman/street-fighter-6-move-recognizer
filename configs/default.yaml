@@ -21,11 +21,11 @@ hud_mask:
   #   - [0.00, 0.00, 1.00, 0.12]   # health bars + timer
   #   - [0.00, 0.88, 1.00, 1.00]   # Drive / Super gauges
 
-characters: [ryu, chunli]
+characters: [chunli, ken]   # chunli is the primary character
 
 movelists:
-  ryu: configs/movelists/ryu.csv
   chunli: configs/movelists/chunli.csv
+  ken: configs/movelists/ken.csv
 
 # Stage settings are added as each phase is implemented:
 #   detection / pose        -> Phase 2

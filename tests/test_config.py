@@ -4,7 +4,7 @@ from sf6mr.config import apply_overrides, load_config
 def test_default_config_loads():
     cfg = load_config()
     assert cfg["video"]["fps"] == 60
-    assert set(cfg["characters"]) == {"ryu", "chunli"}
+    assert set(cfg["characters"]) == {"chunli", "ken"}
 
 
 def test_overrides_parse_types_and_create_keys():

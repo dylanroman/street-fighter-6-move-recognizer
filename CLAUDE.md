@@ -4,8 +4,9 @@ Applied ML class project (CPP CS 4210): recover the **moves and controller input
 Street Fighter 6 characters from 60 fps gameplay video using 2D pose estimation
 (RTMDet + RTMPose) and a skeleton action classifier (ST-GCN++).
 
-Scope: **Ryu and Chun-Li**, Classic controls, ~15 moves each plus a `no_move` class
-(idle / walk / block).
+Scope: **Chun-Li (primary) and Ken**, Classic controls, ~15 moves each plus a `no_move`
+class (idle / walk / block). Chun-Li comes first: each stage is built, tuned and tested
+on her first, then extended to Ken.
 
 ## Hard rules
 
